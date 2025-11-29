@@ -1,5 +1,5 @@
 /**
- * Simple logger is a simplified logger module that could help you create log in ease.
+ * Simple Logger is a simplified logger module that helps you create logs easily.
  *
  * To start using it, create a logger with {@linkcode default.create}.
  *
@@ -61,7 +61,6 @@ function getLogMethod(level: LogLevel): ((...data: any[]) => void) {
 
 function organizeString(input: string) {
     return input.replace(/\r?\n/g, '\n    ');
-
 }
 
 /**
@@ -101,21 +100,21 @@ export type LogLevel = typeof LogLevels[keyof typeof LogLevels]
  */
 export interface LoggerOptions {
     /**
-     * Whether the log should be exported to console.
+     * Whether logs should be exported to the console.
      *
      * Default Value: <code>true</code>
      */
     writeToConsole: boolean;
 
     /**
-     * Whether the log should be exported to a file.
+     * Whether logs should be exported to a file.
      *
      * Default Value: <code>false</code>
      */
     writeToFile: boolean;
 
     /**
-     * The path of the file that the log are going to be exported to.
+     * The path of the file that the logs will be exported to.
      *
      * Default Value: <code>./yyyy-mm-dd-hh-mm-ss.log</code>
      */
@@ -137,7 +136,7 @@ export interface LoggerOptions {
 
     /**
      * Whether input with multi lines should be organized to the format that each line after the first one is retracted
-     * by 4 spaces
+     * by 4 spaces.
      *
      * Default Value: <code>true</code>
      */
@@ -188,34 +187,34 @@ export interface ILogger {
     /**
      * Create a line of log with level INFO.
      */
-    log(...strings: any[]): void;
+    log(...data: any[]): void;
 
     /**
      * Create a line of log with level ERROR.
      */
-    error(...strings: any[]): void;
+    error(...data: any[]): void;
 
     /**
      * Create a line of log with level DEBUG.
      */
-    debug(...strings: any[]): void;
+    debug(...data: any[]): void;
 
     /**
      * Create a line of log with level WARN.
      */
-    warn(...strings: any[]): void;
+    warn(...data: any[]): void;
 
     /**
      * Create a sub logger that will automatically add a flag to indicate context.
      *
-     * @param field - The flag that will be added
+     * @param field - The flag that will be added.
      */
     getSubLogger(field: string): ILogger;
 
     /**
      * Get the parent logger from which the sub logger derived.
      *
-     * If the logger itself is the root one, then itself will be returned.
+     * If the logger itself is the root one, then it will be returned.
      */
     getParentLogger(): ILogger;
 }
@@ -251,12 +250,12 @@ class Logger implements ILogger {
         return this;
     }
 
-    private getLogEntry(...strings: any[]): string {
+    private getLogEntry(...data: any[]): string {
         let formattedLog = `[${getFormattedTime(this.doMillisecond)}]`
-        for (let entry of strings.slice(0, -1)) {
+        for (let entry of data.slice(0, -1)) {
             formattedLog += `[${entry}]`
         }
-        const lastEntry = strings[strings.length - 1];
+        const lastEntry = data[data.length - 1];
         if (lastEntry instanceof Error) {
             formattedLog += ` ${lastEntry.stack}`
         } else if (typeof lastEntry === "string") {
@@ -283,24 +282,24 @@ class Logger implements ILogger {
         }
     }
 
-    private record(levelOfLog: LogLevel, ...strings: any[]): void {
-        this.recordEntry(this.getLogEntry(getLevelName(levelOfLog), ...strings), getLogMethod(levelOfLog), levelOfLog);
+    private record(levelOfLog: LogLevel, ...data: any[]): void {
+        this.recordEntry(this.getLogEntry(getLevelName(levelOfLog), ...data), getLogMethod(levelOfLog), levelOfLog);
     }
 
-    log(...strings: any[]) {
-        this.record(LogLevels.INFO, ...strings);
+    log(...data: any[]) {
+        this.record(LogLevels.INFO, ...data);
     }
 
-    error(...strings: any[]) {
-        this.record(LogLevels.ERROR, ...strings);
+    error(...data: any[]) {
+        this.record(LogLevels.ERROR, ...data);
     }
 
-    debug(...strings: any[]) {
-        this.record(LogLevels.DEBUG, ...strings);
+    debug(...data: any[]) {
+        this.record(LogLevels.DEBUG, ...data);
     }
 
-    warn(...strings: any[]) {
-        this.record(LogLevels.WARN, ...strings);
+    warn(...data: any[]) {
+        this.record(LogLevels.WARN, ...data);
     }
 
 }
@@ -322,20 +321,20 @@ class NestedLogger implements ILogger {
         return this.logger;
     }
 
-    debug(...strings: any[]): void {
-        this.logger.debug(this.field, ...strings);
+    debug(...data: any[]): void {
+        this.logger.debug(this.field, ...data);
     }
 
-    error(...strings: any[]): void {
-        this.logger.error(this.field, ...strings);
+    error(...data: any[]): void {
+        this.logger.error(this.field, ...data);
     }
 
-    log(...strings: any[]): void {
-        this.logger.log(this.field, ...strings);
+    log(...data: any[]): void {
+        this.logger.log(this.field, ...data);
     }
 
-    warn(...strings: any[]): void {
-        this.logger.warn(this.field, ...strings);
+    warn(...data: any[]): void {
+        this.logger.warn(this.field, ...data);
     }
 }
 
