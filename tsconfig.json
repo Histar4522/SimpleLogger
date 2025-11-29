@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "es2022",
+        "module": "nodenext",
+        "removeComments": true,
+        "declaration": true,
+        "strict": true,
+        "declarationDir": ".",
+        "outDir": "."
+
+    },
+    "include": [
+        "./simplelogger.ts",
+        "./test.ts"
+    ],
+    "exclude": []
+}

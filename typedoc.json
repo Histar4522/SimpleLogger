@@ -1,0 +1,15 @@
+{
+    "out": "./docs",
+    "entryPoints": [
+        "./simplelogger.ts"
+    ],
+    "externalSymbolLinkMappings": {
+        "typescript": {
+            "Error.stack": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/stack"
+        },
+        "@types/node": {
+            "\"util\".inspect": "https://nodejs.org/api/util.html#utilinspectobject-options"
+        }
+    },
+    "highlightLanguages": ["log", "typescript"]
+}

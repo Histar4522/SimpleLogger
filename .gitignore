@@ -1,0 +1,3 @@
+# Project exclude paths
+/test.d.ts
+/test.js
