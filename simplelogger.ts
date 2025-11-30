@@ -116,7 +116,7 @@ export interface LoggerOptions {
     /**
      * The path of the file that the logs will be exported to.
      *
-     * Default Value: <code>./yyyy-mm-dd-hh-mm-ss.log</code>
+     * Default Value: <code>./yyyy-mm-dd-hh-mm-ss.log</code>, representing the time when the log file is created.
      */
     path: string;
 
@@ -154,7 +154,7 @@ export interface LoggerOptions {
  * rest will be considered as context flags and surrounded by <code>[]</code>.
  *
  * Objects and Errors is treated differently: {@linkcode util.inspect} is called on an object to stringify it; error
- * objects is converted to string using as {@linkcode Error.stack} to show stack trace.
+ * objects is converted to string as {@linkcode Error.stack} to show stack trace.
  *
  * Call {@linkcode getSubLogger} to create another instance of ILogger, where context flags will be added automatically.
  *
@@ -346,5 +346,20 @@ export default {
      */
     create: (options: Partial<LoggerOptions>): ILogger => {
         return new Logger(options);
+    },
+
+    /**
+     * The asynchronous version of {@linkcode default.create}
+     */
+    createAsync: async (options: Partial<LoggerOptions>): Promise<ILogger> => {
+        return new Promise((resolve, reject) => {
+            setImmediate(() => {
+                try {
+                    resolve(new Logger(options));
+                } catch (err) {
+                    reject(err)
+                }
+            })
+        });
     },
 }
