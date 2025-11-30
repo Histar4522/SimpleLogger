@@ -177,10 +177,28 @@ export interface LoggerOptions {
  * [2025-11-29 16:08:37][WARN][GENERAL] hello, this is a warning
  * [2025-11-29 16:08:37][INFO][GENERAL][OBJECT] { key: 'value', number: 1145, obj: { this: 'is', nested: [ 'object', '!' ] } }
  * [2025-11-29 16:08:37][ERROR] Error: test error!
- *     at <anonymous> (W:\Workspaces\WebStormWorkspaces\SimpleLogger\test.ts:10:32)
+ *     at <anonymous> (test.ts:10:32)
  *     at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
  *     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:671:26)
  *     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+ * ```
+ *
+ * If the program crashed, the error will be appended at the end of the file using the following format:
+ *
+ * ```txt
+ * ================================================================================================
+ *
+ *     At Sun Nov 30 2025 09:57:13 GMT-0500 (Eastern Standard Time) (Epoch: 1764514633473)
+ *
+ *     Program crashed because of: unhandledRejection
+ *
+ *     Error: This is A simple Error
+ *         at file:///test.js:57:15
+ *         at ModuleJob.run (node:internal/modules/esm/module_job:377:25)
+ *         at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:671:26)
+ *         at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+ *
+ * ================================================================================================
  * ```
  */
 export interface ILogger {
@@ -219,10 +237,110 @@ export interface ILogger {
     getParentLogger(): ILogger;
 }
 
+class WriteHelper {
+    private readonly path: string;
+    private temporaryStorage: string[] = [""];
+    private readonly flushSize = 64;
+    private isWriting: boolean = false;
+
+    constructor(path: string) {
+        this.path = path;
+        this.registerExitCallbacks();
+        this.flush()
+    }
+
+    write(content: string) {
+        this.temporaryStorage.push(content);
+        if (this.temporaryStorage.length >= this.flushSize && !this.isWriting) {
+            this.flush();
+        }
+    }
+
+    flush() {
+        this.isWriting = true;
+        const storage = this.temporaryStorage;
+        this.temporaryStorage = [];
+        fs.promises.appendFile(this.path, storage.join("")).then(() => {
+            this.isWriting = false;
+        }).catch((err) => {
+            console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] Failed to flush buffer inside logger.`);
+            console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] ${util.inspect(err, {colors: false})}`);
+        })
+    }
+
+    flushSync() {
+        this.isWriting = true
+        const storage = this.temporaryStorage;1
+        this.temporaryStorage = [];
+        try {
+            fs.appendFileSync(this.path, storage.join(""));
+        } catch (err) {
+            console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] Failed to flush buffer inside logger.`);
+            console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] ${util.inspect(err, {colors: false})}`);
+        }
+        this.isWriting = false
+    }
+
+    private registerExitCallbacks() {
+        process.on('exit', () => {
+            this.flushSync();
+        });
+        process.on('SIGINT', () => {
+            this.flushSync();
+            process.exit(0);
+        });
+        process.on('SIGTERM', () => {
+           this.flushSync();
+            process.exit(0);
+        });
+        process.on('uncaughtException', (err, type) => {
+            const errValue = util.inspect(err, {colors: false});
+            this.write(
+`
+
+================================================================================================
+
+    At ${new Date().toString()} (Epoch: ${Date.now()})
+
+    Program crashed because of: ${type}
+
+    ${errValue.replace(/\r?\n/g, "\n    ")}
+
+================================================================================================
+`
+            );
+            this.flushSync();
+            console.error(err)
+            process.exit(1);
+        });
+        process.on('uncaughtRejection', (err) => {
+            const errValue = util.inspect(err, {colors: false});
+            this.write(
+                `
+
+================================================================================================
+
+    At ${new Date().toString()} (Epoch: ${Date.now()})
+
+    Program crashed because of: uncaughtRejection_
+
+    ${errValue.replace(/\r?\n/g, "\n    ")}
+
+================================================================================================
+`
+            );
+            this.flushSync();
+            console.error(err)
+            process.exit(1);
+        });
+    }
+}
+
 class Logger implements ILogger {
     private readonly writeToConsole: boolean;
     private readonly writeToFile: boolean;
     private readonly path: string;
+    private readonly writeHelper: WriteHelper;
     private readonly doMillisecond: boolean;
     private readonly logLevelConsole: number;
     private readonly logLevelFile: number;
@@ -237,9 +355,7 @@ class Logger implements ILogger {
         this.organizeMultilineInput = options.organizeMultilineInput ?? true;
         this.path = options.path ? path.resolve(options.path) :
             path.join(".", `${getFormattedTime(false, true)}.log`);
-        if (this.writeToFile) {
-            fs.writeFileSync(this.path, "");
-        }
+        this.writeHelper = new WriteHelper(this.path)
     }
 
     getSubLogger(field: string): ILogger {
@@ -275,10 +391,7 @@ class Logger implements ILogger {
             method(entry);
         }
         if (this.writeToFile && levelOfLog >= this.logLevelFile) {
-            fs.promises.appendFile(this.path, `${entry}\n`).catch(err => {
-                console.error(this.getLogEntry("ERROR", "LOGGER", "Unable to write to file"));
-                console.error(this.getLogEntry("ERROR", "LOGGER", err));
-            });
+            this.writeHelper.write(`${entry}\n`);
         }
     }
 
