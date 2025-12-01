@@ -1,15 +1,16 @@
 {
-  "name": "simplelogger",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "HepaticSteatosis",
-  "type": "module",
-  "main": "simplelogger.ts",
-  "scripts": {
-    "test": "pwsh ./build.ps1 && node test.js"
-  },
-  "devDependencies": {
-    "@types/node": "^24.10.1"
-  }
+    "name": "@hepatic-steatosis/simplelogger",
+    "version": "0.0.1",
+    "description": "",
+    "license": "ISC",
+    "author": "hepatic-steatosis",
+    "type": "module",
+    "main": "simplelogger.min.js",
+    "types": "simplelogger.d.ts",
+    "scripts": {
+        "test": "pwsh ./build.ps1 && node test.js"
+    },
+    "devDependencies": {
+        "@types/node": "^24.10.1"
+    }
 }
