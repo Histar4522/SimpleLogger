@@ -1,11 +1,10 @@
 {
     "name": "@hepatic-steatosis/simplelogger",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "A tiny zero-dependency logging utility.",
     "license": "ISC",
     "author": "hepatic-steatosis",
     "type": "module",
-
     "repository": {
         "type": "git",
         "url": "https://github.com/Histar4522/SimpleLogger.git"
@@ -24,10 +23,11 @@
         "build": "tsc && uglifyjs simplelogger.js -o simplelogger.min.js --config-file uglify.config.json",
         "prepublishOnly": "npm run build"
     },
-
     "devDependencies": {
         "@types/node": "^24.10.1"
     },
-
-    "files": ["simplelogger.d.ts", "simplelogger.min.js"]
+    "files": [
+        "simplelogger.d.ts",
+        "simplelogger.min.js"
+    ]
 }
