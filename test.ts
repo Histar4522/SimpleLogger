@@ -1,4 +1,5 @@
 import Logger from "./simplelogger.js";
+import * as path from "node:path";
 
 /**
  * Calculates C = A * B for two random N x N matrices.
@@ -54,7 +55,7 @@ function randomBigInt(digit: number): bigint {
     return BigInt(value);
 }
 
-const logger = Logger.create({writeToFile: true, recordMillisecond: true}).getSubLogger("GENERAL");
+const logger = Logger.create({writeToFile: true, recordMillisecond: true, path: path.join(".", "logs", "%NOW%", "%NOW%.log")}).getSubLogger("GENERAL");
 
 logger.log("hello, this is a log")
 logger.error("hello, this is an error")

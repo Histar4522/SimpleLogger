@@ -116,7 +116,9 @@ export interface LoggerOptions {
     /**
      * The path of the file that the logs will be exported to.
      *
-     * Default Value: <code>./yyyy-mm-dd-hh-mm-ss.log</code>, representing the time when the log file is created.
+     * Any <code>%NOW%</code> will be replaced by the current type with format yyyy-mm-dd-hh-mm-ss
+     *
+     * Default Value: <code>./%NOW%.log</code>
      */
     path: string;
 
@@ -243,8 +245,10 @@ class WriteHelper {
     private readonly flushSize = 64;
     private isWriting: boolean = false;
 
-    constructor(path: string) {
-        this.path = path;
+    constructor(path_: string) {
+        this.path = path_.replace(/%NOW%/g, getFormattedTime(false, true));
+        fs.mkdirSync(path.dirname(this.path), {recursive: true});
+        fs.writeFileSync(this.path, "");
         this.registerExitCallbacks();
         this.flush()
     }
@@ -286,6 +290,20 @@ class WriteHelper {
             this.flushSync();
         });
         process.on('SIGINT', () => {
+            this.write(
+`
+
+================================================================================================
+
+    At ${new Date().toString()} (Epoch: ${Date.now()})
+
+    Program terminated because of: SIGINT
+
+    Program terminated by Ctrl+C
+
+================================================================================================
+`
+            );
             this.flushSync();
             process.exit(0);
         });
@@ -354,7 +372,7 @@ class Logger implements ILogger {
         this.logLevelConsole = options.filtering?.console ?? LogLevels.DEBUG;
         this.organizeMultilineInput = options.organizeMultilineInput ?? true;
         this.path = options.path ? path.resolve(options.path) :
-            path.join(".", `${getFormattedTime(false, true)}.log`);
+            path.join(".", "%NOW%.log");
         this.writeHelper = new WriteHelper(this.path)
     }
 
