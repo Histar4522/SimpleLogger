@@ -6,9 +6,16 @@ const logger = simplelogger.default.create({
     recordMillisecond: true,
 });
 
+for (let i = 0; i < 120; i++) {
+    logger.log("CYCLE", i)
+}
+logger.fatal("test fatal");
+logger.fatal("test fatal");
+logger.fatal("test fatal");
+
 logger.setExitMessage({
-    reason: "fatalError",
-    detail: "WTF",
+    reason: "fatalErrorTest",
+    detail: new Error("Fatal Error Message Test"),
 });
 
-throw new Error("FUCK");
+process.exit(1);

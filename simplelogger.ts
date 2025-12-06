@@ -457,14 +457,16 @@ class WriteHelper {
                 detail: "Program terminated by Ctrl+C",
             }, this.customExitMessage));
             this.flushSync();
+            this.setCustomExitMessage();
             process.exit(0);
         });
         process.on('SIGTERM', () => {
-            this.flushSync();
             this.write(renderExitMessage({
                 exitType: "exited",
                 reason: "SIGTERM",
             }, this.customExitMessage));
+            this.flushSync();
+            this.setCustomExitMessage();
             process.exit(0);
         });
         process.on('uncaughtException', (err, type) => {
@@ -473,9 +475,9 @@ class WriteHelper {
                 reason: type,
                 detail: err,
             }, this.customExitMessage);
-            console.error(exitMessage);
             this.write(exitMessage);
             this.flushSync();
+            this.setCustomExitMessage();
             process.exit(1);
         });
         process.on('uncaughtRejection', (err) => {
@@ -484,9 +486,9 @@ class WriteHelper {
                 reason: "_uncaughtRejection",
                 detail: err,
             }, this.customExitMessage);
-            console.error(exitMessage);
             this.write(exitMessage);
             this.flushSync();
+            this.setCustomExitMessage();
             process.exit(1);
         });
     }
