@@ -37,6 +37,7 @@ export const LogLevels = {
     INFO: 0,
     WARN: 1,
     ERROR: 2,
+    FATAL: 3,
 } as const;
 
 function getLevelName(level: LogLevel): string {
@@ -53,6 +54,8 @@ function getLogMethod(level: LogLevel): ((...data: any[]) => void) {
         case 1:
             return console.warn;
         case 2:
+            return console.error;
+        case 3:
             return console.error;
         default:
             return console.log;
@@ -210,9 +213,19 @@ export interface ILogger {
     log(...data: any[]): void;
 
     /**
+     * An alias for {@linkcode log}
+     */
+    info(...data: any[]): void;
+
+    /**
      * Create a line of log with level ERROR.
      */
     error(...data: any[]): void;
+
+    /**
+     * An alias of {@linkcode error}
+     */
+    err(...data: any[]): void;
 
     /**
      * Create a line of log with level DEBUG.
@@ -223,6 +236,11 @@ export interface ILogger {
      * Create a line of log with level WARN.
      */
     warn(...data: any[]): void;
+
+    /**
+     * Create a line of log with level FATAL.
+     */
+    fatal(...data: any[]): void;
 
     /**
      * Create a sub logger that will automatically add a flag to indicate context.
@@ -237,6 +255,130 @@ export interface ILogger {
      * If the logger itself is the root one, then it will be returned.
      */
     getParentLogger(): ILogger;
+
+    /**
+     * Write all logs to disk immediately.
+     *
+     * @see {@linkcode flushAsync} Asynchronous version
+     */
+    flushSync(): void;
+
+    /**
+     * Write all logs to disk immediately.
+     *
+     * @see {@linkcode flushAsync} Synchronous version
+     */
+    flushAsync(): Promise<void>;
+
+    /**
+     * Set a custom exit message that will be appended to the end of the program.
+     *
+     * When this is set, the default one will not be shown.
+     */
+    setExitMessage(message?: ExitMessage): void;
+
+    /**
+     * Clear the exit message that has been set.
+     */
+    clearExitMessage(): void;
+}
+
+/**
+ * An entry for {@linkcode ExitMessage}.
+ *
+ * When it is T, the value will be used;
+ *
+ * When it is a function, you can gain access to the default value. You may return a processes value or nothing as adopt
+ * the default value.
+ */
+export type ExitMessageContent<T> = T | ((defaultMessage: DefaultExitMessage) => T | undefined);
+
+/**
+ * An exit message. When any of the entries  is undefined, the default value of it will be used.
+ */
+export interface ExitMessage {
+    /**
+     * The type of exit. Will be shown at 'The program ________ because of: xxxx'
+     *
+     * Default: <code>undefined</code> (Use default value)
+     */
+    exitType?: "crashed" | "terminated" | "exited" | "ended" | string;
+
+    /**
+     * The reason of exit. Will be shown at 'The program exited because of: ________'
+     *
+     * Default: <code>undefined</code> (Use default value)
+     */
+    reason?: ExitMessageContent<string>;
+
+    /**
+     * Further information about why the program exit.
+     *
+     * Default: <code>undefined</code> (Use default value)
+     */
+    detail?: ExitMessageContent<any>;
+}
+
+/**
+ * A default exit message.
+ */
+export interface DefaultExitMessage {
+    /**
+     * The type of exit. Will be shown at 'The program ________ because of: xxxx'
+     */
+    exitType: "crashed" | "terminated" | "exited" | "ended" | string;
+
+    /**
+     * The reason of exit. Will be shown at 'The program exited because of: ________'
+     */
+    reason: string;
+
+    /**
+     * Further information about why the program exit.
+     *
+     * Will be shown at the bottom of the message.
+     */
+    detail?: any;
+}
+
+function renderExitMessage(defaultMessage: DefaultExitMessage, customMessage?: ExitMessage): string {
+    const exitType = customMessage?.exitType ?? defaultMessage.exitType;
+
+    let reason: string;
+    const reasonContent = customMessage?.reason;
+    if (typeof reasonContent === "string") {
+        reason = reasonContent;
+    } else if (typeof reasonContent === "function") {
+        reason = reasonContent(defaultMessage) ?? defaultMessage.reason;
+    } else {
+        reason = defaultMessage.reason;
+    }
+
+    let detail: any;
+    const detailContent = customMessage?.detail;
+    if (typeof detailContent === "function") {
+        detail = detailContent(defaultMessage) ?? defaultMessage.detail;
+    } else if (detailContent !== undefined) {
+        detail = detailContent;
+    } else {
+        detail = defaultMessage.detail;
+    }
+
+    const renderedDetail = detail === undefined ? "" : util.inspect(detail, {colors: false})
+        .replace(/\r?\n/g, "\n    ");
+
+    return `
+
+================================================================================================
+
+    At ${new Date().toString()} (Epoch: ${Date.now()})
+
+    Program ${exitType} because of: ${reason}
+
+    ${renderedDetail}
+
+================================================================================================
+`;
 }
 
 class WriteHelper {
@@ -244,6 +386,7 @@ class WriteHelper {
     private temporaryStorage: string[] = [""];
     private readonly flushSize = 64;
     private isWriting: boolean = false;
+    private customExitMessage?: ExitMessage;
 
     constructor(path_: string) {
         this.path = path_.replace(/%NOW%/g, getFormattedTime(false, true));
@@ -253,6 +396,10 @@ class WriteHelper {
         this.flush()
     }
 
+    setCustomExitMessage(exitMessage?: ExitMessage){
+        this.customExitMessage = exitMessage
+    }
+
     write(content: string) {
         this.temporaryStorage.push(content);
         if (this.temporaryStorage.length >= this.flushSize && !this.isWriting) {
@@ -260,21 +407,29 @@ class WriteHelper {
         }
     }
 
-    flush() {
+    flush(): void {
+        this.flushAsync().then(() => {});
+    }
+
+    async flushAsync() {
         this.isWriting = true;
         const storage = this.temporaryStorage;
         this.temporaryStorage = [];
-        fs.promises.appendFile(this.path, storage.join("")).then(() => {
-            this.isWriting = false;
-        }).catch((err) => {
+        try {
+            await fs.promises.appendFile(this.path, storage.join(""))
+        } catch (err) {
             console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] Failed to flush buffer inside logger.`);
             console.error(`[${getFormattedTime(true)}][ERROR][LOGGER] ${util.inspect(err, {colors: false})}`);
-        })
+            storage.push(...this.temporaryStorage);
+            this.temporaryStorage = storage;
+        } finally {
+            this.isWriting = false;
+        }
     }
 
     flushSync() {
-        this.isWriting = true
-        const storage = this.temporaryStorage;1
+        this.isWriting = true;
+        const storage = this.temporaryStorage;
         this.temporaryStorage = [];
         try {
             fs.appendFileSync(this.path, storage.join(""));
@@ -287,68 +442,51 @@ class WriteHelper {
 
     private registerExitCallbacks() {
         process.on('exit', () => {
+            if (this.customExitMessage) {
+                this.write(renderExitMessage({
+                    exitType: "exited",
+                    reason: "unknown",
+                }, this.customExitMessage));
+            }
             this.flushSync();
         });
         process.on('SIGINT', () => {
-            this.write(
-`
-
-================================================================================================
-
-    At ${new Date().toString()} (Epoch: ${Date.now()})
-
-    Program terminated because of: SIGINT
-
-    Program terminated by Ctrl+C
-
-================================================================================================
-`
-            );
+            this.write(renderExitMessage({
+                exitType: "exited",
+                reason: "SIGINT",
+                detail: "Program terminated by Ctrl+C",
+            }, this.customExitMessage));
             this.flushSync();
             process.exit(0);
         });
         process.on('SIGTERM', () => {
-           this.flushSync();
+            this.flushSync();
+            this.write(renderExitMessage({
+                exitType: "exited",
+                reason: "SIGTERM",
+            }, this.customExitMessage));
             process.exit(0);
         });
         process.on('uncaughtException', (err, type) => {
-            const errValue = util.inspect(err, {colors: false});
-            this.write(
-`
-
-================================================================================================
-
-    At ${new Date().toString()} (Epoch: ${Date.now()})
-
-    Program crashed because of: ${type}
-
-    ${errValue.replace(/\r?\n/g, "\n    ")}
-
-================================================================================================
-`
-            );
+            const exitMessage = renderExitMessage({
+                exitType: "crashed",
+                reason: type,
+                detail: err,
+            }, this.customExitMessage);
+            console.error(exitMessage);
+            this.write(exitMessage);
             this.flushSync();
-            console.error(err)
             process.exit(1);
         });
         process.on('uncaughtRejection', (err) => {
-            const errValue = util.inspect(err, {colors: false});
-            this.write(
-                `
-
-================================================================================================
-
-    At ${new Date().toString()} (Epoch: ${Date.now()})
-
-    Program crashed because of: uncaughtRejection_
-
-    ${errValue.replace(/\r?\n/g, "\n    ")}
-
-================================================================================================
-`
-            );
+            const exitMessage = renderExitMessage({
+                exitType: "crashed",
+                reason: "_uncaughtRejection",
+                detail: err,
+            }, this.customExitMessage);
+            console.error(exitMessage);
+            this.write(exitMessage);
             this.flushSync();
-            console.error(err)
             process.exit(1);
         });
     }
@@ -358,22 +496,42 @@ class Logger implements ILogger {
     private readonly writeToConsole: boolean;
     private readonly writeToFile: boolean;
     private readonly path: string;
-    private readonly writeHelper: WriteHelper;
+    private readonly writeHelper?: WriteHelper;
     private readonly doMillisecond: boolean;
     private readonly logLevelConsole: number;
     private readonly logLevelFile: number;
     private readonly organizeMultilineInput: boolean;
 
-    constructor(options: Partial<LoggerOptions>) {
-        this.doMillisecond = options.recordMillisecond ?? false;
-        this.writeToConsole = options.writeToConsole ?? true;
-        this.writeToFile = options.writeToFile ?? false;
-        this.logLevelFile = options.filtering?.file ?? LogLevels.DEBUG;
-        this.logLevelConsole = options.filtering?.console ?? LogLevels.DEBUG;
-        this.organizeMultilineInput = options.organizeMultilineInput ?? true;
-        this.path = options.path ? path.resolve(options.path) :
+    constructor(options?: Partial<LoggerOptions>) {
+        const options0 = options ?? {};
+        this.doMillisecond = options0.recordMillisecond ?? false;
+        this.writeToConsole = options0.writeToConsole ?? true;
+        this.writeToFile = options0.writeToFile ?? false;
+        this.logLevelFile = options0.filtering?.file ?? LogLevels.DEBUG;
+        this.logLevelConsole = options0.filtering?.console ?? LogLevels.DEBUG;
+        this.organizeMultilineInput = options0.organizeMultilineInput ?? true;
+        this.path = options0.path ? path.resolve(options0.path) :
             path.join(".", "%NOW%.log");
-        this.writeHelper = new WriteHelper(this.path)
+        if (this.writeToFile) {
+            this.writeHelper = new WriteHelper(this.path);
+        }
+    }
+
+    flushSync(): void {
+        if (this.writeToFile) {
+            this.writeHelper?.flushSync();
+        }
+    }
+    async flushAsync(): Promise<void> {
+        if (this.writeToFile) {
+            await this.writeHelper?.flushAsync();
+        }
+    }
+    setExitMessage(message?: ExitMessage): void {
+        this.writeHelper?.setCustomExitMessage(message);
+    }
+    clearExitMessage(): void {
+        this.setExitMessage();
     }
 
     getSubLogger(field: string): ILogger {
@@ -385,7 +543,7 @@ class Logger implements ILogger {
     }
 
     private getLogEntry(...data: any[]): string {
-        let formattedLog = `[${getFormattedTime(this.doMillisecond)}]`
+        let formattedLog = `[${getFormattedTime(this.doMillisecond)}]`;
         for (let entry of data.slice(0, -1)) {
             formattedLog += `[${entry}]`
         }
@@ -393,7 +551,7 @@ class Logger implements ILogger {
         if (lastEntry instanceof Error) {
             formattedLog += ` ${lastEntry.stack}`
         } else if (typeof lastEntry === "string") {
-            let entry = lastEntry
+            let entry = lastEntry;
             if (this.organizeMultilineInput) {
                 entry = organizeString(entry);
             }
@@ -409,7 +567,7 @@ class Logger implements ILogger {
             method(entry);
         }
         if (this.writeToFile && levelOfLog >= this.logLevelFile) {
-            this.writeHelper.write(`${entry}\n`);
+            this.writeHelper?.write(`${entry}\n`);
         }
     }
 
@@ -421,8 +579,16 @@ class Logger implements ILogger {
         this.record(LogLevels.INFO, ...data);
     }
 
+    info(...data: any[]) {
+        this.log(...data)
+    }
+
     error(...data: any[]) {
         this.record(LogLevels.ERROR, ...data);
+    }
+
+    err(...data: any[]) {
+        this.error(...data)
     }
 
     debug(...data: any[]) {
@@ -433,6 +599,9 @@ class Logger implements ILogger {
         this.record(LogLevels.WARN, ...data);
     }
 
+    fatal(...data: any[]) {
+        this.record(LogLevels.FATAL, ...data);
+    }
 }
 
 class NestedLogger implements ILogger {
@@ -442,6 +611,19 @@ class NestedLogger implements ILogger {
     constructor(logger: ILogger, field: string) {
         this.field = field;
         this.logger = logger;
+    }
+
+    flushSync(): void {
+        this.logger.flushSync();
+    }
+    async flushAsync(): Promise<void> {
+        await this.logger.flushAsync()
+    }
+    setExitMessage(message?: ExitMessage): void {
+        this.logger.setExitMessage(message)
+    }
+    clearExitMessage(): void {
+        this.logger.clearExitMessage();
     }
 
     getSubLogger(field: string): ILogger {
@@ -460,12 +642,24 @@ class NestedLogger implements ILogger {
         this.logger.error(this.field, ...data);
     }
 
+    err(...data: any[]) {
+        this.error(...data)
+    }
+
     log(...data: any[]): void {
         this.logger.log(this.field, ...data);
     }
 
+    info(...data: any[]): void {
+        this.log(...data)
+    }
+
     warn(...data: any[]): void {
         this.logger.warn(this.field, ...data);
+    }
+
+    fatal(...data: any[]): void {
+        this.logger.fatal(this.field, ...data);
     }
 }
 
@@ -475,14 +669,14 @@ export default {
      *
      * Note that this function may invoke a synchronous write to filesystem.
      */
-    create: (options: Partial<LoggerOptions>): ILogger => {
+    create: (options?: Partial<LoggerOptions>): ILogger => {
         return new Logger(options);
     },
 
     /**
      * The asynchronous version of {@linkcode default.create}
      */
-    createAsync: async (options: Partial<LoggerOptions>): Promise<ILogger> => {
+    createAsync: async (options?: Partial<LoggerOptions>): Promise<ILogger> => {
         return new Promise((resolve, reject) => {
             setImmediate(() => {
                 try {
