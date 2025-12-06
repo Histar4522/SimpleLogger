@@ -1,6 +1,6 @@
 {
     "name": "@hepatic-steatosis/simplelogger",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "A tiny zero-dependency logging utility.",
     "license": "ISC",
     "author": "hepatic-steatosis",
