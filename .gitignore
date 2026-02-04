@@ -1,9 +1,4 @@
 # Project exclude paths
-/test.d.ts
-/test.js
-/simplelogger.d.ts
-/simplelogger.js
-/simplelogger.min.js
 node_modules
 .idea
 package-lock.json

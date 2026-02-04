@@ -1,16 +1,19 @@
 {
     "compilerOptions": {
-        "target": "es2020",
+        "target": "es2024",
         "module": "nodenext",
         "declaration": true,
         "strict": true,
-        "declarationDir": ".",
-        "outDir": "."
+        "declarationDir": "./dist/",
+        "outDir": "./dist/",
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictBindCallApply": true,
+        "stripInternal": true
 
     },
     "include": [
-        "./simplelogger.ts",
-        "./test.ts"
+        "./src/*"
     ],
     "exclude": []
 }

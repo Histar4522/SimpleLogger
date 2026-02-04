@@ -1,15 +1,18 @@
 {
     "out": "./docs",
+    "entryPointStrategy": "expand",
     "entryPoints": [
-        "./simplelogger.ts"
+        "./src/"
     ],
+    "basePath": "./src/",
     "externalSymbolLinkMappings": {
         "typescript": {
-            "Error.stack": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/stack"
+            "Error.stack": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/stack",
+            "Date": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date",
+            "RegExp": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp"
         },
         "@types/node": {
             "\"util\".inspect": "https://nodejs.org/api/util.html#utilinspectobject-options"
         }
-    },
-    "highlightLanguages": ["log", "typescript"]
+    }
 }
